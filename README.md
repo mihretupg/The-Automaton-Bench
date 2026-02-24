@@ -22,7 +22,23 @@ python -m venv .venv
 pip install -e ".[dev]"
 ```
 
-Run an audit:
+Run backend API:
+
+```bash
+automaton-bench-api
+```
+
+Run frontend:
+
+```bash
+cd frontend
+npm install
+npm run dev
+```
+
+Then open `http://localhost:5173` and submit a repository + PDF report.
+
+Run a CLI audit:
 
 ```bash
 automaton-bench "https://github.com/org/repo" --pdf-report "C:\path\to\peer-report.pdf" --output-dir audit_output

@@ -7,6 +7,9 @@ dependencies = [
   "langgraph>=0.2.0",
   "pydantic>=2.7.0",
   "pypdf>=4.2.0",
+  "fastapi>=0.115.0",
+  "uvicorn>=0.30.0",
+  "python-multipart>=0.0.9",
 ]
 
 [project.optional-dependencies]
@@ -16,6 +19,7 @@ dev = [
 
 [project.scripts]
 automaton-bench = "automaton_bench.cli:main"
+automaton-bench-api = "automaton_bench.api:main"
 
 [build-system]
 requires = ["setuptools>=68", "wheel"]
