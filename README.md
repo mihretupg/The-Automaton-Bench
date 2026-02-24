@@ -1,4 +1,4 @@
-# The Automaton Bench
+# The Automation Bench
 
 Deliverable-focused implementation of the Digital Courtroom architecture for Week 2.
 
