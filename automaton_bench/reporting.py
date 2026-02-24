@@ -24,6 +24,28 @@ def build_markdown_report(report: AuditReport) -> str:
         f"- Score: `{fv.score}/100`",
         f"- Confidence: `{fv.confidence}`",
         "",
+        "## Verdict By Criterion (1-5)",
+    ]
+    if fv.criterion_verdicts:
+        for verdict in fv.criterion_verdicts:
+            lines.append(f"- {verdict.criterion}: `{verdict.final_score_1_to_5}/5` ({verdict.ruling})")
+    else:
+        lines.append("- No criterion verdicts available.")
+
+    lines.extend(
+        [
+            "",
+            "## Dissent",
+        ]
+    )
+    if fv.dissents:
+        lines.extend([f"- {note.criterion}: {note.summary}" for note in fv.dissents])
+    else:
+        lines.append("- No material dissent recorded by the Supreme Court.")
+
+    lines.extend(
+        [
+            "",
         "## Forensic Snapshot",
         f"- Repository: `{ev.repository_path}`",
         f"- Repository URL: `{ev.repository_source_url or 'N/A'}`",
@@ -45,7 +67,8 @@ def build_markdown_report(report: AuditReport) -> str:
         ev.pdf_excerpt or "_No extractable PDF text available._",
         "",
         "## Findings",
-    ]
+        ]
+    )
     if ev.findings:
         lines.extend([f"- {finding}" for finding in ev.findings])
     else:
@@ -99,8 +122,8 @@ def build_markdown_report(report: AuditReport) -> str:
         lines.extend([f"  - {fix}" for fix in opinion.remediation])
         lines.append("")
 
-    lines.extend(["## Unified Remediation Plan"])
-    lines.extend([f"- {step}" for step in fv.remediation_plan])
+    lines.extend(["## Remediation Plan"])
+    lines.extend([f"- `{step.file_path}`: {step.instruction}" for step in fv.remediation_plan])
     return "\n".join(lines).strip() + "\n"
 
 

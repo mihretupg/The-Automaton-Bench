@@ -146,7 +146,7 @@ def techlead_node(state: AuditState) -> AuditState:
 
 
 def chief_justice_node(state: AuditState) -> AuditState:
-    verdict = synthesize_verdict(state["judge_opinions"])
+    verdict = synthesize_verdict(state["judge_opinions"], state["evidence"])
     return {
         "final_report": AuditReport(
             evidence=state["evidence"],

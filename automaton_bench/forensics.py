@@ -28,6 +28,22 @@ def _iter_python_files(root: Path) -> Iterable[Path]:
     yield from root.rglob("*.py")
 
 
+def _detect_security_vulnerabilities(tree: ast.AST, file_relpath: str) -> list[str]:
+    findings: list[str] = []
+    for node in ast.walk(tree):
+        if isinstance(node, ast.Call) and isinstance(node.func, ast.Attribute):
+            func = node.func
+            if isinstance(func.value, ast.Name) and func.value.id == "os" and func.attr == "system":
+                if not node.args:
+                    continue
+                first_arg = node.args[0]
+                if not (isinstance(first_arg, ast.Constant) and isinstance(first_arg.value, str)):
+                    findings.append(
+                        f"Security vulnerability: os.system with unsanitized input in {file_relpath}"
+                    )
+    return findings
+
+
 def _extract_pdf_evidence(evidence: ForensicEvidence, pdf_report_path: str | None) -> None:
     if not pdf_report_path:
         evidence.findings.append("No PDF report provided for cross-evidence verification.")
@@ -100,6 +116,7 @@ def collect_forensic_evidence(
         except SyntaxError:
             evidence.findings.append(f"Syntax error in {path.relative_to(root)}")
             continue
+        evidence.findings.extend(_detect_security_vulnerabilities(tree, str(path.relative_to(root))))
 
         class_count = sum(isinstance(node, ast.ClassDef) for node in ast.walk(tree))
         function_nodes = [node for node in ast.walk(tree) if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef))]

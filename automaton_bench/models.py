@@ -113,12 +113,30 @@ class JudgeOpinion(BaseModel):
     remediation: List[str]
 
 
+class CriterionVerdict(BaseModel):
+    criterion: str
+    final_score_1_to_5: int = Field(ge=1, le=5)
+    ruling: str
+
+
+class DissentNote(BaseModel):
+    criterion: str
+    summary: str
+
+
+class RemediationAction(BaseModel):
+    file_path: str
+    instruction: str
+
+
 class FinalVerdict(BaseModel):
     label: VerdictLabel
     score: int
     confidence: float = Field(ge=0.0, le=1.0)
     consensus_summary: List[str]
-    remediation_plan: List[str]
+    criterion_verdicts: List[CriterionVerdict] = Field(default_factory=list)
+    dissents: List[DissentNote] = Field(default_factory=list)
+    remediation_plan: List[RemediationAction] = Field(default_factory=list)
 
 
 class AuditReport(BaseModel):
