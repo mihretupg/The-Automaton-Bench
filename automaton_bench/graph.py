@@ -22,6 +22,7 @@ from automaton_bench.models import (
     RepoInvestigatorEvidence,
     VisionInspectorEvidence,
 )
+from automaton_bench.state import AgentState, Evidence, JudicialOpinion
 from automaton_bench.synthesis import synthesize_verdict
 
 
@@ -42,6 +43,8 @@ class AuditState(TypedDict, total=False):
     evidence: ForensicEvidence
     judge_opinions: Annotated[list[JudgeOpinion], operator.add]
     final_report: AuditReport
+    evidences: Annotated[dict[str, list[Evidence]], operator.ior]
+    opinions: Annotated[list[JudicialOpinion], operator.add]
 
 
 def base_forensics_node(state: DetectiveState) -> DetectiveState:
@@ -99,6 +102,68 @@ def detective_aggregation_node(state: DetectiveState) -> DetectiveState:
     return {"evidence": evidence}
 
 
+def _detective_evidence_map(state: DetectiveState) -> dict[str, list[Evidence]]:
+    repo = state["repo_investigator"]
+    doc = state["doc_analyst"]
+    vision = state["vision_inspector"]
+    return {
+        "RepoInvestigator": [
+            Evidence(
+                goal="State Structure",
+                found=repo.state_structure.passed,
+                content=repo.state_structure.summary,
+                location="src/state.py|src/graph.py",
+                rationale=repo.state_structure.summary,
+                confidence=0.9 if repo.state_structure.passed else 0.5,
+            ),
+            Evidence(
+                goal="Graph Wiring",
+                found=repo.graph_wiring.passed,
+                content=repo.graph_wiring.summary,
+                location="graph AST",
+                rationale=repo.graph_wiring.summary,
+                confidence=0.9 if repo.graph_wiring.passed else 0.5,
+            ),
+            Evidence(
+                goal="Git Narrative",
+                found=repo.git_narrative.passed,
+                content=repo.git_narrative.summary,
+                location="git log",
+                rationale=repo.git_narrative.summary,
+                confidence=0.85 if repo.git_narrative.passed else 0.5,
+            ),
+        ],
+        "DocAnalyst": [
+            Evidence(
+                goal="Citation Check",
+                found=doc.citation_check.passed,
+                content=doc.citation_check.summary,
+                location="README.md|PDF",
+                rationale=doc.citation_check.summary,
+                confidence=0.85 if doc.citation_check.passed else 0.45,
+            ),
+            Evidence(
+                goal="Concept Verification",
+                found=doc.concept_verification.passed,
+                content=doc.concept_verification.summary,
+                location="README.md|PDF",
+                rationale=doc.concept_verification.summary,
+                confidence=0.8 if doc.concept_verification.passed else 0.4,
+            ),
+        ],
+        "VisionInspector": [
+            Evidence(
+                goal="Flow Analysis",
+                found=vision.flow_analysis.passed,
+                content=vision.flow_analysis.summary,
+                location="architecture diagrams",
+                rationale=vision.flow_analysis.summary,
+                confidence=0.8 if vision.flow_analysis.passed else 0.4,
+            )
+        ],
+    }
+
+
 def build_detective_graph():
     if StateGraph is None:
         return _FallbackDetectiveGraph()
@@ -130,19 +195,55 @@ def detective_layer_node(state: AuditState) -> AuditState:
             "pdf_report_path": state.get("pdf_report_path"),
         }
     )
-    return {"evidence": detective_state["evidence"]}
+    return {
+        "evidence": detective_state["evidence"],
+        "evidences": _detective_evidence_map(detective_state),
+    }
 
 
 def prosecutor_node(state: AuditState) -> AuditState:
-    return {"judge_opinions": [generate_judge_opinion(state["evidence"], JUDGE_PROFILES[0])]}
+    opinion = generate_judge_opinion(state["evidence"], JUDGE_PROFILES[0])
+    judicial = [
+        JudicialOpinion(
+            judge="Prosecutor",
+            criterion_id=item.criterion,
+            score=item.score_1_to_5,
+            argument=item.reasoning,
+            cited_evidence=["RepoInvestigator", "DocAnalyst", "VisionInspector"],
+        )
+        for item in opinion.criterion_opinions
+    ]
+    return {"judge_opinions": [opinion], "opinions": judicial}
 
 
 def defense_node(state: AuditState) -> AuditState:
-    return {"judge_opinions": [generate_judge_opinion(state["evidence"], JUDGE_PROFILES[1])]}
+    opinion = generate_judge_opinion(state["evidence"], JUDGE_PROFILES[1])
+    judicial = [
+        JudicialOpinion(
+            judge="Defense",
+            criterion_id=item.criterion,
+            score=item.score_1_to_5,
+            argument=item.reasoning,
+            cited_evidence=["RepoInvestigator", "DocAnalyst", "VisionInspector"],
+        )
+        for item in opinion.criterion_opinions
+    ]
+    return {"judge_opinions": [opinion], "opinions": judicial}
 
 
 def techlead_node(state: AuditState) -> AuditState:
-    return {"judge_opinions": [generate_judge_opinion(state["evidence"], JUDGE_PROFILES[2])]}
+    opinion = generate_judge_opinion(state["evidence"], JUDGE_PROFILES[2])
+    judicial = [
+        JudicialOpinion(
+            judge="TechLead",
+            criterion_id=item.criterion,
+            score=item.score_1_to_5,
+            argument=item.reasoning,
+            cited_evidence=["RepoInvestigator", "DocAnalyst", "VisionInspector"],
+        )
+        for item in opinion.criterion_opinions
+    ]
+    return {"judge_opinions": [opinion], "opinions": judicial}
 
 
 def chief_justice_node(state: AuditState) -> AuditState:
@@ -160,7 +261,7 @@ def build_graph():
     if StateGraph is None:
         return _FallbackAuditGraph()
 
-    builder = StateGraph(AuditState)
+    builder = StateGraph(AgentState)
     builder.add_node("detective_layer", detective_layer_node)
     builder.add_node("prosecutor", prosecutor_node)
     builder.add_node("defense", defense_node)
@@ -194,10 +295,18 @@ class _FallbackAuditGraph:
         next_state = dict(state)
         next_state.update(detective_layer_node(next_state))
         opinions: list[JudgeOpinion] = []
-        opinions.extend(prosecutor_node(next_state)["judge_opinions"])
-        opinions.extend(defense_node(next_state)["judge_opinions"])
-        opinions.extend(techlead_node(next_state)["judge_opinions"])
+        judicial_stream: list[JudicialOpinion] = []
+        prosecutor = prosecutor_node(next_state)
+        defense = defense_node(next_state)
+        techlead = techlead_node(next_state)
+        opinions.extend(prosecutor["judge_opinions"])
+        judicial_stream.extend(prosecutor["opinions"])
+        opinions.extend(defense["judge_opinions"])
+        judicial_stream.extend(defense["opinions"])
+        opinions.extend(techlead["judge_opinions"])
+        judicial_stream.extend(techlead["opinions"])
         next_state["judge_opinions"] = opinions
+        next_state["opinions"] = judicial_stream
         next_state.update(chief_justice_node(next_state))
         return next_state
 
@@ -208,9 +317,14 @@ def run_audit(repository: str, pdf_report_path: str | None = None) -> AuditRepor
     try:
         result: AuditState = app.invoke(
             {
+                "repo_url": repository,
                 "repo_path": resolved.repository_path,
                 "repo_source_url": resolved.repository_source_url,
+                "pdf_path": pdf_report_path or "",
                 "pdf_report_path": pdf_report_path,
+                "rubric_dimensions": [],
+                "evidences": {},
+                "opinions": [],
                 "judge_opinions": [],
             }
         )

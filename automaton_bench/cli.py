@@ -4,6 +4,7 @@ import argparse
 from pathlib import Path
 
 from automaton_bench.graph import run_audit
+from automaton_bench.observability import bootstrap_runtime
 from automaton_bench.reporting import write_report_json, write_report_markdown
 
 
@@ -27,6 +28,7 @@ def parse_args() -> argparse.Namespace:
 
 
 def main() -> None:
+    bootstrap_runtime()
     args = parse_args()
     report = run_audit(args.repository, pdf_report_path=args.pdf_report)
     out_dir = Path(args.output_dir)

@@ -7,6 +7,9 @@ from fastapi import FastAPI, File, Form, HTTPException, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
 
 from automaton_bench.graph import run_audit
+from automaton_bench.observability import bootstrap_runtime
+
+bootstrap_runtime()
 
 app = FastAPI(title="Automaton Bench API", version="0.1.0")
 

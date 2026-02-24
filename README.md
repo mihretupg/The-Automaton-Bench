@@ -32,15 +32,22 @@ The graph is fan-out (three judges in parallel) then fan-in (single synthesis).
 ## Quick Start
 
 ```bash
-python -m venv .venv
-. .venv/Scripts/activate
-pip install -e ".[dev]"
+uv venv
+uv sync
 ```
+
+Create environment file:
+
+```bash
+copy .env.example .env
+```
+
+Set `LANGCHAIN_API_KEY` in `.env` for LangSmith traces. Runtime bootstraps `.env` automatically and enables `LANGCHAIN_TRACING_V2=true`.
 
 Run backend API:
 
 ```bash
-automaton-bench-api
+uv run automaton-bench-api
 ```
 
 Run frontend:
@@ -56,7 +63,7 @@ Then open `http://localhost:5173` and submit a repository + PDF report.
 Run a CLI audit:
 
 ```bash
-automaton-bench "https://github.com/org/repo" --pdf-report "C:\path\to\peer-report.pdf" --output-dir audit_output
+uv run automaton-bench "https://github.com/org/repo" --pdf-report "C:\path\to\peer-report.pdf" --output-dir audit_output
 ```
 
 Outputs:
