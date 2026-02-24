@@ -12,6 +12,11 @@ The Automaton Bench is a multi-agent LangGraph auditor designed for Week 2 MinMa
    - `RepoInvestigator`: AST/state schema checks, graph fan-out wiring checks, and git narrative timeline extraction.
    - `DocAnalyst`: citation cross-reference and concept-depth verification.
    - `VisionInspector`: architecture flow analysis for parallel detective/judge topology.
+   - Phase 2 tool primitives:
+     - `analyze_graph_structure(path: str)`
+     - `extract_git_history(path: str)`
+     - `ingest_pdf(path: str)` with chunked RAG-lite query support
+     - `extract_images_from_pdf(path: str)` for multimodal inspection hooks
 2. Judge Layer:
    - `Prosecutor`, `Defense`, and `TechLead` evaluate identical evidence in parallel.
    - Each judge emits criterion-by-criterion `JudicialCriterionOpinion` objects for:

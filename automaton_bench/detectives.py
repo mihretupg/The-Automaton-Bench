@@ -4,7 +4,7 @@ import ast
 import re
 import subprocess
 from pathlib import Path
-from typing import Iterable
+from typing import Any, Iterable
 
 from automaton_bench.models import (
     CitationFinding,
@@ -45,63 +45,69 @@ def _parse_edge_endpoints(call: ast.Call) -> tuple[str, str] | None:
     return source.value, target.value
 
 
-def investigate_repository(repo_path: str) -> RepoInvestigatorEvidence:
-    root = Path(repo_path).resolve()
+def _classify_git_history(commits: list[GitCommitRecord]) -> str:
+    commit_count = len(commits)
+    if commit_count <= 1:
+        return "MONOLITHIC"
+    messages = [commit.message.lower() for commit in commits]
+    unique_messages = len(set(messages))
+    if commit_count >= 4 and unique_messages >= 3:
+        return "ATOMIC"
+    return "MIXED"
 
-    state_targets = [root / "src" / "state.py", root / "src" / "graph.py"]
-    state_files = [path for path in state_targets if path.exists()]
+
+def analyze_graph_structure(path: str) -> dict[str, Any]:
+    root = Path(path).resolve()
+    state_targets = [root / "src" / "state.py", root / "src" / "graph.py", root / "automaton_bench" / "state.py"]
+    state_files = [p for p in state_targets if p.exists()]
+
     typed_schema_locations: list[str] = []
-    for file_path in state_files:
-        src = _safe_read(file_path)
-        try:
-            tree = ast.parse(src)
-        except SyntaxError:
-            continue
-        for node in ast.walk(tree):
-            if isinstance(node, ast.ClassDef):
-                base_names = [getattr(base, "id", getattr(base, "attr", "")) for base in node.bases]
-                if "BaseModel" in base_names or "TypedDict" in base_names:
-                    typed_schema_locations.append(f"{file_path.relative_to(root)}::{node.name}")
-
-    state_protocol = ProtocolResult(
-        protocol="State Structure",
-        passed=bool(state_files and typed_schema_locations),
-        summary=(
-            f"Found typed state schemas: {', '.join(typed_schema_locations)}"
-            if typed_schema_locations
-            else "Missing typed state schemas in src/state.py or src/graph.py."
-        ),
-    )
-
+    stategraph_instantiations: list[str] = []
     edges_by_source: dict[str, set[str]] = {}
+
     for py_file in _iter_python_files(root):
         src = _safe_read(py_file)
         try:
             tree = ast.parse(src)
         except SyntaxError:
             continue
+
         for node in ast.walk(tree):
-            if isinstance(node, ast.Call) and isinstance(node.func, ast.Attribute) and node.func.attr == "add_edge":
-                parsed = _parse_edge_endpoints(node)
-                if not parsed:
-                    continue
-                source, target = parsed
-                edges_by_source.setdefault(source, set()).add(target)
+            if isinstance(node, ast.ClassDef):
+                base_names = [getattr(base, "id", getattr(base, "attr", "")) for base in node.bases]
+                if "BaseModel" in base_names or "TypedDict" in base_names:
+                    typed_schema_locations.append(f"{py_file.relative_to(root)}::{node.name}")
+
+            if isinstance(node, ast.Call):
+                if isinstance(node.func, ast.Name) and node.func.id == "StateGraph":
+                    stategraph_instantiations.append(str(py_file.relative_to(root)))
+                elif isinstance(node.func, ast.Attribute) and node.func.attr == "StateGraph":
+                    stategraph_instantiations.append(str(py_file.relative_to(root)))
+
+                if isinstance(node.func, ast.Attribute) and node.func.attr == "add_edge":
+                    parsed = _parse_edge_endpoints(node)
+                    if not parsed:
+                        continue
+                    source, target = parsed
+                    edges_by_source.setdefault(source, set()).add(target)
 
     fan_out_sources = sorted([source for source, targets in edges_by_source.items() if len(targets) >= 2])
-    graph_protocol = ProtocolResult(
-        protocol="Graph Wiring",
-        passed=bool(fan_out_sources),
-        summary=(
-            f"Detected fan-out from: {', '.join(fan_out_sources)}"
-            if fan_out_sources
-            else "No AST-verified fan-out edge pattern detected from add_edge calls."
-        ),
-    )
+    return {
+        "state_files": [str(p.relative_to(root)) for p in state_files],
+        "typed_schema_locations": sorted(set(typed_schema_locations)),
+        "stategraph_instantiations": sorted(set(stategraph_instantiations)),
+        "edges_by_source": {k: sorted(v) for k, v in edges_by_source.items()},
+        "fan_out_sources": fan_out_sources,
+        "is_parallel_wired": bool(fan_out_sources),
+        "has_typed_state": bool(state_files and typed_schema_locations),
+        "is_stategraph_instantiated": bool(stategraph_instantiations),
+    }
 
+
+def extract_git_history(path: str) -> dict[str, Any]:
+    root = Path(path).resolve()
     commits: list[GitCommitRecord] = []
-    git_classification = "UNKNOWN"
-    git_summary = "No git metadata available."
+    error: str | None = None
     try:
         result = subprocess.run(
             ["git", "-C", str(root), "log", "--pretty=format:%H|%aI|%s", "--reverse"],
@@ -109,7 +115,9 @@ def investigate_repository(repo_path: str) -> RepoInvestigatorEvidence:
             capture_output=True,
             text=True,
         )
-        if result.returncode == 0:
+        if result.returncode != 0:
+            error = (result.stderr.strip() or result.stdout.strip() or "git log failed").strip()
+        else:
             for line in result.stdout.splitlines():
                 parts = line.split("|", 2)
                 if len(parts) != 3:
@@ -121,61 +129,113 @@ def investigate_repository(repo_path: str) -> RepoInvestigatorEvidence:
                         message=parts[2],
                     )
                 )
-    except OSError:
-        commits = []
+    except OSError as exc:
+        error = str(exc)
 
-    commit_count = len(commits)
-    if commit_count <= 1:
-        git_classification = "MONOLITHIC"
-    else:
-        messages = [commit.message.lower() for commit in commits]
-        unique_messages = len(set(messages))
-        if commit_count >= 4 and unique_messages >= 3:
-            git_classification = "ATOMIC"
-        else:
-            git_classification = "MIXED"
-
+    classification = _classify_git_history(commits) if commits else "UNKNOWN"
+    summary = "No git metadata available."
     if commits:
-        git_summary = (
-            f"{git_classification} history with {commit_count} commits; "
+        summary = (
+            f"{classification} history with {len(commits)} commits; "
             f"timeline {commits[0].authored_at} -> {commits[-1].authored_at}."
         )
-
-    git_protocol = ProtocolResult(
-        protocol="Git Narrative",
-        passed=git_classification == "ATOMIC",
-        summary=git_summary,
-    )
-
-    return RepoInvestigatorEvidence(
-        state_structure=state_protocol,
-        graph_wiring=graph_protocol,
-        git_narrative=git_protocol,
-        fan_out_sources=fan_out_sources,
-        typed_schema_locations=typed_schema_locations,
-        git_commit_count=commit_count,
-        git_history_classification=git_classification,
-        git_timeline=commits,
-    )
+    elif error:
+        summary = f"Git history unavailable: {error}"
+    return {
+        "commits": commits,
+        "classification": classification,
+        "summary": summary,
+        "error": error,
+    }
 
 
-def _read_pdf_text(pdf_report_path: str | None) -> str:
-    if not pdf_report_path or PdfReader is None:
-        return ""
-    pdf_path = Path(pdf_report_path).resolve()
+def ingest_pdf(path: str, chunk_size: int = 1200, overlap: int = 120) -> dict[str, Any]:
+    if chunk_size <= overlap:
+        raise ValueError("chunk_size must be larger than overlap")
+    if not path:
+        return {"chunks": [], "page_count": 0, "query": lambda _: []}
+    if PdfReader is None:
+        return {"chunks": [], "page_count": 0, "query": lambda _: []}
+
+    pdf_path = Path(path).resolve()
     if not pdf_path.exists():
-        return ""
+        return {"chunks": [], "page_count": 0, "query": lambda _: []}
+
     try:
         reader = PdfReader(str(pdf_path))
     except Exception:
-        return ""
-    parts: list[str] = []
+        return {"chunks": [], "page_count": 0, "query": lambda _: []}
+
+    full_text = []
     for page in reader.pages:
         try:
-            parts.append(page.extract_text() or "")
+            full_text.append(page.extract_text() or "")
         except Exception:
-            parts.append("")
-    return "\n".join(parts)
+            full_text.append("")
+    text = "\n".join(full_text).strip()
+
+    chunks: list[dict[str, Any]] = []
+    if text:
+        start = 0
+        idx = 0
+        stride = chunk_size - overlap
+        while start < len(text):
+            end = min(len(text), start + chunk_size)
+            chunk = text[start:end]
+            chunks.append({"id": idx, "text": chunk})
+            idx += 1
+            start += stride
+
+    def query(question: str, top_k: int = 3) -> list[dict[str, Any]]:
+        tokens = [t for t in re.findall(r"[A-Za-z0-9_]+", question.lower()) if len(t) > 2]
+        scored: list[tuple[int, dict[str, Any]]] = []
+        for chunk in chunks:
+            lowered = chunk["text"].lower()
+            score = sum(lowered.count(token) for token in tokens)
+            if score > 0:
+                scored.append((score, chunk))
+        scored.sort(key=lambda x: x[0], reverse=True)
+        return [item[1] for item in scored[:top_k]]
+
+    return {"chunks": chunks, "page_count": len(reader.pages), "query": query}
+
+
+def extract_images_from_pdf(path: str, output_dir: str | None = None) -> list[str]:
+    if PdfReader is None:
+        return []
+    pdf_path = Path(path).resolve()
+    if not pdf_path.exists():
+        return []
+    try:
+        reader = PdfReader(str(pdf_path))
+    except Exception:
+        return []
+
+    out_base = Path(output_dir).resolve() if output_dir else (pdf_path.parent / f"{pdf_path.stem}_images")
+    out_base.mkdir(parents=True, exist_ok=True)
+
+    results: list[str] = []
+    for page_index, page in enumerate(reader.pages):
+        images = getattr(page, "images", [])
+        for image_index, image_file in enumerate(images):
+            raw = getattr(image_file, "data", None)
+            if not raw:
+                continue
+            ext = Path(getattr(image_file, "name", f"p{page_index}_img{image_index}.bin")).suffix or ".bin"
+            out_path = out_base / f"page_{page_index + 1}_image_{image_index + 1}{ext}"
+            try:
+                out_path.write_bytes(raw)
+                results.append(str(out_path))
+            except OSError:
+                continue
+    return results
+
+
+def _read_pdf_text(pdf_report_path: str | None) -> str:
+    if not pdf_report_path:
+        return ""
+    parsed = ingest_pdf(pdf_report_path)
+    return "\n".join(chunk["text"] for chunk in parsed["chunks"])
 
 
 def _read_markdown_corpus(root: Path) -> str:
@@ -195,9 +255,53 @@ _CITED_PATH_PATTERN = re.compile(
 )
 
 
+def investigate_repository(repo_path: str) -> RepoInvestigatorEvidence:
+    graph_analysis = analyze_graph_structure(repo_path)
+    git_data = extract_git_history(repo_path)
+
+    state_protocol = ProtocolResult(
+        protocol="State Structure",
+        passed=graph_analysis["has_typed_state"],
+        summary=(
+            f"Found typed state schemas: {', '.join(graph_analysis['typed_schema_locations'])}"
+            if graph_analysis["has_typed_state"]
+            else "Missing typed state schemas in src/state.py or src/graph.py."
+        ),
+    )
+    graph_protocol = ProtocolResult(
+        protocol="Graph Wiring",
+        passed=graph_analysis["is_parallel_wired"],
+        summary=(
+            f"Detected fan-out from: {', '.join(graph_analysis['fan_out_sources'])}"
+            if graph_analysis["is_parallel_wired"]
+            else "No AST-verified fan-out edge pattern detected from add_edge calls."
+        ),
+    )
+    git_protocol = ProtocolResult(
+        protocol="Git Narrative",
+        passed=git_data["classification"] == "ATOMIC",
+        summary=git_data["summary"],
+    )
+
+    commits: list[GitCommitRecord] = git_data["commits"]
+    return RepoInvestigatorEvidence(
+        state_structure=state_protocol,
+        graph_wiring=graph_protocol,
+        git_narrative=git_protocol,
+        fan_out_sources=graph_analysis["fan_out_sources"],
+        typed_schema_locations=graph_analysis["typed_schema_locations"],
+        git_commit_count=len(commits),
+        git_history_classification=git_data["classification"],
+        git_timeline=commits,
+    )
+
+
 def analyze_documentation(repo_path: str, pdf_report_path: str | None) -> DocAnalystEvidence:
     root = Path(repo_path).resolve()
-    corpus = f"{_read_markdown_corpus(root)}\n{_read_pdf_text(pdf_report_path)}"
+    pdf_corpus = ingest_pdf(pdf_report_path or "")
+    dialectical_chunks = pdf_corpus["query"]("What does the report say about Dialectical Synthesis?")
+    combined_pdf = "\n".join(chunk["text"] for chunk in dialectical_chunks) if dialectical_chunks else _read_pdf_text(pdf_report_path)
+    corpus = f"{_read_markdown_corpus(root)}\n{combined_pdf}"
     cited_paths = sorted(set(match.group(1).replace("\\", "/") for match in _CITED_PATH_PATTERN.finditer(corpus)))
 
     findings: list[CitationFinding] = []
@@ -255,6 +359,7 @@ def inspect_diagrams(repo_path: str, pdf_report_path: str | None) -> VisionInspe
     corpus = f"{_read_markdown_corpus(root)}\n{_read_pdf_text(pdf_report_path)}"
     lines = [line.strip() for line in corpus.splitlines() if line.strip()]
     diagram_lines = [line for line in lines if "->" in line or "flowchart" in line.lower() or "mermaid" in line.lower()]
+    image_paths = extract_images_from_pdf(pdf_report_path or "")
     lowered = corpus.lower()
 
     has_detective = "detective" in lowered
@@ -266,7 +371,7 @@ def inspect_diagrams(repo_path: str, pdf_report_path: str | None) -> VisionInspe
     if has_detective and has_judge and has_aggregation and has_synthesis and has_parallel:
         classification = "COURTROOM_PARALLEL"
         passed = True
-    elif diagram_lines:
+    elif diagram_lines or image_paths:
         classification = "LINEAR_OR_INCOMPLETE"
         passed = False
     else:
@@ -281,5 +386,5 @@ def inspect_diagrams(repo_path: str, pdf_report_path: str | None) -> VisionInspe
     return VisionInspectorEvidence(
         flow_analysis=flow_protocol,
         architecture_flow_classification=classification,
-        diagram_sources=diagram_lines[:20],
+        diagram_sources=(diagram_lines + image_paths)[:20],
     )
