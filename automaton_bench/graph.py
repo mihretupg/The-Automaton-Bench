@@ -263,7 +263,7 @@ def build_graph():
     if StateGraph is None:
         return _FallbackAuditGraph()
 
-    builder = StateGraph(AgentState)
+    builder = StateGraph(AuditState)
     builder.add_node("detective_layer", detective_layer_node)
     builder.add_node("prosecutor", prosecutor_node)
     builder.add_node("defense", defense_node)
@@ -326,9 +326,6 @@ def run_audit(repository: str, pdf_report_path: str | None = None) -> AuditRepor
                 "pdf_path": pdf_report_path or "",
                 "pdf_report_path": pdf_report_path,
                 "rubric_dimensions": rubric_dimensions,
-                "evidences": {},
-                "opinions": [],
-                "judge_opinions": [],
             }
         )
         return result["final_report"]

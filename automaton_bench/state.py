@@ -35,6 +35,6 @@ class AgentState(TypedDict, total=False):
     rubric_dimensions: List[Dict]
     evidences: Annotated[Dict[str, List[Evidence]], operator.ior]
     opinions: Annotated[List[JudicialOpinion], operator.add]
-    judge_opinions: list
+    judge_opinions: Annotated[List[dict], operator.add]
     evidence: dict
     final_report: dict
