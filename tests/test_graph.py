@@ -13,4 +13,4 @@ def test_run_audit_returns_report(tmp_path: Path) -> None:
     assert report.final_verdict.score >= 0
     assert len(report.judge_opinions) == 3
     assert report.evidence.python_files >= 1
-
+    assert all(len(op.criterion_opinions) == 5 for op in report.judge_opinions)

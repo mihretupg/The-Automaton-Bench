@@ -97,9 +97,18 @@ class RubricBreakdown(BaseModel):
         )
 
 
+class JudicialCriterionOpinion(BaseModel):
+    criterion: str
+    score_1_to_5: int = Field(ge=1, le=5)
+    lens: str
+    reasoning: str
+    missing_elements: List[str] = Field(default_factory=list)
+
+
 class JudgeOpinion(BaseModel):
     judge_name: str
     score: RubricBreakdown
+    criterion_opinions: List[JudicialCriterionOpinion] = Field(default_factory=list)
     rationale: List[str]
     remediation: List[str]
 

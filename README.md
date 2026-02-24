@@ -14,6 +14,12 @@ The Automaton Bench is a multi-agent LangGraph auditor designed for Week 2 MinMa
    - `VisionInspector`: architecture flow analysis for parallel detective/judge topology.
 2. Judge Layer:
    - `Prosecutor`, `Defense`, and `TechLead` evaluate identical evidence in parallel.
+   - Each judge emits criterion-by-criterion `JudicialCriterionOpinion` objects for:
+     - Artifact Integrity
+     - LangGraph Architecture
+     - Judicial Nuance
+     - Engineering Process
+     - Cross-Evidence Fidelity
 3. Chief Justice Layer:
    - synthesizes the final verdict and unified remediation plan.
 

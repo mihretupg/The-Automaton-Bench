@@ -88,6 +88,11 @@ def build_markdown_report(report: AuditReport) -> str:
     for opinion in report.judge_opinions:
         lines.append(f"### {opinion.judge_name}")
         lines.append(f"- Score: `{opinion.score.total}/100`")
+        lines.append("- Criterion Opinions:")
+        for item in opinion.criterion_opinions:
+            lines.append(
+                f"  - {item.criterion}: {item.score_1_to_5}/5 ({item.lens}) - {item.reasoning}"
+            )
         lines.append("- Rationale:")
         lines.extend([f"  - {note}" for note in opinion.rationale])
         lines.append("- Remediation:")
