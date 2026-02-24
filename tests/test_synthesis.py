@@ -79,3 +79,21 @@ def test_functionality_rule_weights_techlead_for_architecture() -> None:
     architecture = next(item for item in verdict.criterion_verdicts if item.criterion == "LangGraph Architecture")
     assert architecture.final_score_1_to_5 == 3
     assert any("Tech Lead carried higher weight" in d.summary for d in verdict.dissents)
+
+
+def test_conflict_variance_triggers_constitution_re_evaluation() -> None:
+    evidence = ForensicEvidence(
+        repository_path="repo",
+        python_files=0,
+        dependency_files=[],
+        docs_present=False,
+    )
+    opinions = [
+        _opinion("Prosecutor", {"Artifact Integrity": 1}),
+        _opinion("Defense", {"Artifact Integrity": 5}),
+        _opinion("TechLead", {"Artifact Integrity": 5}),
+    ]
+    verdict = synthesize_verdict(opinions, evidence)
+    artifact = next(item for item in verdict.criterion_verdicts if item.criterion == "Artifact Integrity")
+    assert artifact.final_score_1_to_5 == 1
+    assert any("re-evaluated with constitution rules" in d.summary for d in verdict.dissents)

@@ -25,6 +25,9 @@ The Automaton Bench is a multi-agent LangGraph auditor designed for Week 2 MinMa
      - Judicial Nuance
      - Engineering Process
      - Cross-Evidence Fidelity
+   - Structured output enforcement:
+     - Judges use `.with_structured_output()` when `OPENAI_API_KEY` is available.
+     - Parser errors trigger retry attempts before fallback logic is used.
 3. Chief Justice Layer:
    - synthesizes the final verdict and unified remediation plan.
    - applies hardcoded Supreme Court rules:
@@ -92,6 +95,11 @@ Outputs:
 4. Refine this auditor to catch misses and reduce false positives.
 
 Repeat until both your project quality and your auditor quality converge upward.
+
+## Constitution
+
+- Scoring dimensions are dynamically loaded from [automaton_bench/rubric.json](automaton_bench/rubric.json).
+- Update that file to change courtroom rubric behavior without changing code paths.
 
 ## Inputs
 

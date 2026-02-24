@@ -1,0 +1,56 @@
+{
+  "variance_threshold": 2,
+  "criteria": {
+    "LangGraph Architecture": {
+      "checks": [
+        "repo_investigator.graph_wiring.passed",
+        "repo_investigator.state_structure.passed"
+      ],
+      "score_if_all_true": 5,
+      "score_if_any_true": 3,
+      "score_if_none_true": 1,
+      "rationale": "Architecture ruling re-evaluated from AST wiring + typed state evidence."
+    },
+    "Cross-Evidence Fidelity": {
+      "checks": [
+        "doc_analyst.citation_check.passed",
+        "pdf_text_char_count>=120"
+      ],
+      "score_if_all_true": 5,
+      "score_if_any_true": 3,
+      "score_if_none_true": 1,
+      "rationale": "Cross-evidence ruling re-evaluated from citation integrity + readable PDF evidence."
+    },
+    "Engineering Process": {
+      "checks": [
+        "repo_investigator.git_narrative.passed",
+        "ci_present"
+      ],
+      "score_if_all_true": 5,
+      "score_if_any_true": 3,
+      "score_if_none_true": 1,
+      "rationale": "Process ruling re-evaluated from git narrative + CI evidence."
+    },
+    "Artifact Integrity": {
+      "checks": [
+        "python_files>0",
+        "dependency_files_non_empty",
+        "docs_present"
+      ],
+      "score_if_all_true": 5,
+      "score_if_any_true": 3,
+      "score_if_none_true": 1,
+      "rationale": "Artifact ruling re-evaluated from repository artifact completeness."
+    },
+    "Judicial Nuance": {
+      "checks": [
+        "doc_analyst.concept_verification.passed",
+        "vision_inspector.flow_analysis.passed"
+      ],
+      "score_if_all_true": 5,
+      "score_if_any_true": 3,
+      "score_if_none_true": 1,
+      "rationale": "Nuance ruling re-evaluated from concept depth + architectural flow evidence."
+    }
+  }
+}

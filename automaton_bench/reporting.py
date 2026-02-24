@@ -19,18 +19,31 @@ def build_markdown_report(report: AuditReport) -> str:
     lines = [
         "# Automaton Bench Audit Report",
         "",
-        "## Final Verdict",
+        "## Executive Summary",
         f"- Label: `{fv.label.value}`",
         f"- Score: `{fv.score}/100`",
         f"- Confidence: `{fv.confidence}`",
-        "",
-        "## Verdict By Criterion (1-5)",
     ]
+    lines.extend([f"- {item}" for item in fv.consensus_summary])
+    lines.extend(
+        [
+            "",
+            "## Criterion Breakdown",
+        ]
+    )
     if fv.criterion_verdicts:
         for verdict in fv.criterion_verdicts:
             lines.append(f"- {verdict.criterion}: `{verdict.final_score_1_to_5}/5` ({verdict.ruling})")
     else:
         lines.append("- No criterion verdicts available.")
+
+    lines.extend(
+        [
+            "",
+            "## Remediation Plan",
+        ]
+    )
+    lines.extend([f"- `{step.file_path}`: {step.instruction}" for step in fv.remediation_plan])
 
     lines.extend(
         [
@@ -46,7 +59,9 @@ def build_markdown_report(report: AuditReport) -> str:
     lines.extend(
         [
             "",
-        "## Forensic Snapshot",
+            "## Supporting Evidence",
+            "",
+            "### Forensic Snapshot",
         f"- Repository: `{ev.repository_path}`",
         f"- Repository URL: `{ev.repository_source_url or 'N/A'}`",
         f"- PDF report: `{ev.pdf_report_path or 'N/A'}`",
@@ -63,10 +78,10 @@ def build_markdown_report(report: AuditReport) -> str:
         f"- Docs present: `{ev.docs_present}`",
         f"- Security docs present: `{ev.security_docs_present}`",
         "",
-        "## PDF Excerpt",
+        "### PDF Excerpt",
         ev.pdf_excerpt or "_No extractable PDF text available._",
         "",
-        "## Findings",
+        "### Findings",
         ]
     )
     if ev.findings:
@@ -74,7 +89,7 @@ def build_markdown_report(report: AuditReport) -> str:
     else:
         lines.append("- No critical forensic findings.")
 
-    lines.extend(["", "## Detective Layer"])
+    lines.extend(["", "### Detective Layer"])
     if ev.repo_investigator:
         repo = ev.repo_investigator
         lines.extend(
@@ -107,7 +122,7 @@ def build_markdown_report(report: AuditReport) -> str:
             ]
         )
 
-    lines.extend(["", "## Judge Opinions"])
+    lines.extend(["", "### Judge Opinions"])
     for opinion in report.judge_opinions:
         lines.append(f"### {opinion.judge_name}")
         lines.append(f"- Score: `{opinion.score.total}/100`")
@@ -122,8 +137,6 @@ def build_markdown_report(report: AuditReport) -> str:
         lines.extend([f"  - {fix}" for fix in opinion.remediation])
         lines.append("")
 
-    lines.extend(["## Remediation Plan"])
-    lines.extend([f"- `{step.file_path}`: {step.instruction}" for step in fv.remediation_plan])
     return "\n".join(lines).strip() + "\n"
 
 

@@ -1,0 +1,40 @@
+{
+  "version": "week2",
+  "dimensions": [
+    {
+      "id": "artifact_integrity",
+      "name": "Artifact Integrity",
+      "description": "Core repository artifacts exist and are coherent.",
+      "max_points": 25,
+      "bucket": "artifact_existence"
+    },
+    {
+      "id": "langgraph_architecture",
+      "name": "LangGraph Architecture",
+      "description": "Parallel orchestration, typed state, and deterministic graph execution.",
+      "max_points": 25,
+      "bucket": "architecture_modularity"
+    },
+    {
+      "id": "judicial_nuance",
+      "name": "Judicial Nuance",
+      "description": "Dialectical analysis quality across conflicting judicial personas.",
+      "max_points": 20,
+      "bucket": "test_quality"
+    },
+    {
+      "id": "engineering_process",
+      "name": "Engineering Process",
+      "description": "Atomic commit narrative, CI hygiene, and implementation discipline.",
+      "max_points": 15,
+      "bucket": "ci_governance"
+    },
+    {
+      "id": "cross_evidence_fidelity",
+      "name": "Cross-Evidence Fidelity",
+      "description": "Document claims, code reality, and visual flow consistency.",
+      "max_points": 15,
+      "bucket": "documentation"
+    }
+  ]
+}

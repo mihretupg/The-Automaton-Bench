@@ -1,7 +1,11 @@
 from __future__ import annotations
 
+import json
+import os
 from dataclasses import dataclass
-from typing import List
+from typing import Any
+
+from pydantic import BaseModel, Field
 
 from automaton_bench.models import (
     ForensicEvidence,
@@ -24,13 +28,10 @@ JUDGE_PROFILES = [
 ]
 
 
-CRITERION_TO_BUCKET = [
-    ("Artifact Integrity", "artifact_existence", 25),
-    ("LangGraph Architecture", "architecture_modularity", 25),
-    ("Judicial Nuance", "test_quality", 20),
-    ("Engineering Process", "ci_governance", 15),
-    ("Cross-Evidence Fidelity", "documentation", 15),
-]
+class StructuredJudgeResponse(BaseModel):
+    score: int = Field(ge=1, le=5)
+    reasoning: str
+    citations: list[str] = Field(default_factory=list)
 
 
 def _quantize_score(raw: int) -> int:
@@ -55,7 +56,7 @@ def _base_signals(e: ForensicEvidence) -> dict[str, bool]:
     }
 
 
-def _evaluate_criterion(
+def _evaluate_criterion_heuristic(
     e: ForensicEvidence,
     profile: JudgeProfile,
     criterion: str,
@@ -161,16 +162,84 @@ def _evaluate_criterion(
     return score, reasoning, sorted(set(missing))
 
 
+def _llm_enabled() -> bool:
+    return bool(os.getenv("OPENAI_API_KEY"))
+
+
+def _invoke_structured_judge_llm(
+    profile: JudgeProfile,
+    criterion: dict[str, Any],
+    evidence: ForensicEvidence,
+    max_retries: int = 2,
+) -> StructuredJudgeResponse | None:
+    if not _llm_enabled():
+        return None
+    try:
+        from langchain_openai import ChatOpenAI
+    except Exception:
+        return None
+
+    system_prompt = (
+        "You are a Digital Courtroom judge. "
+        f"Persona: {profile.name} ({profile.lens}). "
+        "Return strictly structured output with score (1-5), reasoning, and citations."
+    )
+    evidence_payload = {
+        "repo_path": evidence.repository_path,
+        "findings": evidence.findings,
+        "repo_investigator": evidence.repo_investigator.model_dump(mode="json") if evidence.repo_investigator else {},
+        "doc_analyst": evidence.doc_analyst.model_dump(mode="json") if evidence.doc_analyst else {},
+        "vision_inspector": evidence.vision_inspector.model_dump(mode="json") if evidence.vision_inspector else {},
+    }
+    human_prompt = (
+        "Evaluate one rubric criterion.\n"
+        f"Criterion: {criterion['name']} ({criterion['id']})\n"
+        f"Description: {criterion.get('description', '')}\n"
+        f"Evidence JSON: {json.dumps(evidence_payload)}"
+    )
+
+    llm = ChatOpenAI(model=os.getenv("OPENAI_MODEL", "gpt-4o-mini"), temperature=0)
+    structured_llm = llm.with_structured_output(StructuredJudgeResponse)
+    attempt = 0
+    while attempt <= max_retries:
+        try:
+            return structured_llm.invoke(
+                [
+                    {"role": "system", "content": system_prompt},
+                    {"role": "user", "content": human_prompt},
+                ]
+            )
+        except Exception as exc:
+            attempt += 1
+            if attempt > max_retries:
+                raise RuntimeError(
+                    f"Structured parser error for judge={profile.name}, criterion={criterion['id']}: {exc}"
+                ) from exc
+    return None
+
+
 def _criterion_to_bucket_points(score_1_to_5: int, bucket_max: int) -> int:
     return round((score_1_to_5 / 5) * bucket_max)
 
 
-def _build_rubric_breakdown(opinions: list[JudicialCriterionOpinion]) -> RubricBreakdown:
-    lookup = {op.criterion: op.score_1_to_5 for op in opinions}
-    bucket_values: dict[str, int] = {}
-    for criterion, bucket, bucket_max in CRITERION_TO_BUCKET:
-        score = lookup.get(criterion, 1)
-        bucket_values[bucket] = _criterion_to_bucket_points(score, bucket_max)
+def _build_rubric_breakdown(
+    opinions: list[JudicialCriterionOpinion],
+    rubric_dimensions: list[dict[str, Any]],
+) -> RubricBreakdown:
+    by_name = {item.criterion: item.score_1_to_5 for item in opinions}
+    bucket_values = {
+        "artifact_existence": 0,
+        "architecture_modularity": 0,
+        "test_quality": 0,
+        "ci_governance": 0,
+        "documentation": 0,
+    }
+    for dimension in rubric_dimensions:
+        score = by_name.get(dimension["name"], 1)
+        bucket = dimension.get("bucket", "documentation")
+        bucket_max = int(dimension.get("max_points", 15))
+        if bucket in bucket_values:
+            bucket_values[bucket] = _criterion_to_bucket_points(score, bucket_max)
     return RubricBreakdown(**bucket_values)
 
 
@@ -192,13 +261,37 @@ def _build_remediation(criterion_opinions: list[JudicialCriterionOpinion]) -> li
     return fixes
 
 
-def generate_judge_opinion(evidence: ForensicEvidence, profile: JudgeProfile) -> JudgeOpinion:
+def generate_judge_opinion(
+    evidence: ForensicEvidence,
+    profile: JudgeProfile,
+    rubric_dimensions: list[dict[str, Any]],
+) -> JudgeOpinion:
     criterion_opinions: list[JudicialCriterionOpinion] = []
-    for criterion, _, _ in CRITERION_TO_BUCKET:
-        score, reasoning, missing = _evaluate_criterion(evidence, profile, criterion)
+    for dimension in rubric_dimensions:
+        criterion_name = dimension["name"]
+        heuristic_score, heuristic_reasoning, heuristic_missing = _evaluate_criterion_heuristic(
+            evidence, profile, criterion_name
+        )
+
+        llm_result = None
+        try:
+            llm_result = _invoke_structured_judge_llm(profile, dimension, evidence)
+        except RuntimeError:
+            llm_result = None
+
+        if llm_result is not None:
+            score = llm_result.score
+            reasoning = llm_result.reasoning
+            citations = llm_result.citations
+            missing = list(sorted(set(heuristic_missing + [f"Citations: {', '.join(citations)}"])))
+        else:
+            score = heuristic_score
+            reasoning = heuristic_reasoning
+            missing = heuristic_missing
+
         criterion_opinions.append(
             JudicialCriterionOpinion(
-                criterion=criterion,
+                criterion=criterion_name,
                 score_1_to_5=score,
                 lens=profile.lens,
                 reasoning=reasoning,
@@ -208,7 +301,7 @@ def generate_judge_opinion(evidence: ForensicEvidence, profile: JudgeProfile) ->
 
     return JudgeOpinion(
         judge_name=profile.name,
-        score=_build_rubric_breakdown(criterion_opinions),
+        score=_build_rubric_breakdown(criterion_opinions, rubric_dimensions),
         criterion_opinions=criterion_opinions,
         rationale=_build_rationale(profile, criterion_opinions),
         remediation=_build_remediation(criterion_opinions),

@@ -11,6 +11,7 @@ except Exception:  # pragma: no cover - dependency/runtime compatibility guard
     StateGraph = None
 
 from automaton_bench.detectives import analyze_documentation, inspect_diagrams, investigate_repository
+from automaton_bench.constitution import load_rubric_dimensions
 from automaton_bench.forensics import collect_forensic_evidence
 from automaton_bench.intake import resolve_repository_input
 from automaton_bench.judges import JUDGE_PROFILES, generate_judge_opinion
@@ -40,6 +41,7 @@ class AuditState(TypedDict, total=False):
     repo_path: str
     repo_source_url: str | None
     pdf_report_path: str | None
+    rubric_dimensions: list[dict]
     evidence: ForensicEvidence
     judge_opinions: Annotated[list[JudgeOpinion], operator.add]
     final_report: AuditReport
@@ -79,7 +81,7 @@ def vision_inspector_node(state: DetectiveState) -> DetectiveState:
     }
 
 
-def detective_aggregation_node(state: DetectiveState) -> DetectiveState:
+def evidence_aggregator_node(state: DetectiveState) -> DetectiveState:
     evidence = state["evidence"]
     repo = state["repo_investigator"]
     doc = state["doc_analyst"]
@@ -173,16 +175,16 @@ def build_detective_graph():
     builder.add_node("repo_investigator", repo_investigator_node)
     builder.add_node("doc_analyst", doc_analyst_node)
     builder.add_node("vision_inspector", vision_inspector_node)
-    builder.add_node("detective_aggregation", detective_aggregation_node)
+    builder.add_node("evidence_aggregator", evidence_aggregator_node)
 
     builder.add_edge(START, "base_forensics")
     builder.add_edge("base_forensics", "repo_investigator")
     builder.add_edge("base_forensics", "doc_analyst")
     builder.add_edge("base_forensics", "vision_inspector")
-    builder.add_edge("repo_investigator", "detective_aggregation")
-    builder.add_edge("doc_analyst", "detective_aggregation")
-    builder.add_edge("vision_inspector", "detective_aggregation")
-    builder.add_edge("detective_aggregation", END)
+    builder.add_edge("repo_investigator", "evidence_aggregator")
+    builder.add_edge("doc_analyst", "evidence_aggregator")
+    builder.add_edge("vision_inspector", "evidence_aggregator")
+    builder.add_edge("evidence_aggregator", END)
     return builder.compile()
 
 
@@ -202,7 +204,7 @@ def detective_layer_node(state: AuditState) -> AuditState:
 
 
 def prosecutor_node(state: AuditState) -> AuditState:
-    opinion = generate_judge_opinion(state["evidence"], JUDGE_PROFILES[0])
+    opinion = generate_judge_opinion(state["evidence"], JUDGE_PROFILES[0], state["rubric_dimensions"])
     judicial = [
         JudicialOpinion(
             judge="Prosecutor",
@@ -217,7 +219,7 @@ def prosecutor_node(state: AuditState) -> AuditState:
 
 
 def defense_node(state: AuditState) -> AuditState:
-    opinion = generate_judge_opinion(state["evidence"], JUDGE_PROFILES[1])
+    opinion = generate_judge_opinion(state["evidence"], JUDGE_PROFILES[1], state["rubric_dimensions"])
     judicial = [
         JudicialOpinion(
             judge="Defense",
@@ -232,7 +234,7 @@ def defense_node(state: AuditState) -> AuditState:
 
 
 def techlead_node(state: AuditState) -> AuditState:
-    opinion = generate_judge_opinion(state["evidence"], JUDGE_PROFILES[2])
+    opinion = generate_judge_opinion(state["evidence"], JUDGE_PROFILES[2], state["rubric_dimensions"])
     judicial = [
         JudicialOpinion(
             judge="TechLead",
@@ -286,7 +288,7 @@ class _FallbackDetectiveGraph:
         next_state.update(repo_investigator_node(next_state))
         next_state.update(doc_analyst_node(next_state))
         next_state.update(vision_inspector_node(next_state))
-        next_state.update(detective_aggregation_node(next_state))
+        next_state.update(evidence_aggregator_node(next_state))
         return next_state
 
 
@@ -313,6 +315,7 @@ class _FallbackAuditGraph:
 
 def run_audit(repository: str, pdf_report_path: str | None = None) -> AuditReport:
     app = build_graph()
+    rubric_dimensions = load_rubric_dimensions()
     resolved = resolve_repository_input(repository)
     try:
         result: AuditState = app.invoke(
@@ -322,7 +325,7 @@ def run_audit(repository: str, pdf_report_path: str | None = None) -> AuditRepor
                 "repo_source_url": resolved.repository_source_url,
                 "pdf_path": pdf_report_path or "",
                 "pdf_report_path": pdf_report_path,
-                "rubric_dimensions": [],
+                "rubric_dimensions": rubric_dimensions,
                 "evidences": {},
                 "opinions": [],
                 "judge_opinions": [],
