@@ -1,6 +1,6 @@
 # The Automation Bench
 
-Deliverable-focused implementation of the Digital Courtroom architecture for Week 2.
+Deliverable-focused implementation of the Digital Courtroom architecture.
 
 ## Deliverable Map
 - `src/state.py`: Pydantic + TypedDict state definitions with reducers (`operator.add`, `operator.ior`)
