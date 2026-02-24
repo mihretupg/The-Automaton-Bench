@@ -1,0 +1,21 @@
+[project]
+name = "automaton-bench"
+version = "0.1.0"
+description = "Automated auditor swarm for Week 2 repository grading."
+requires-python = ">=3.10"
+dependencies = [
+  "langgraph>=0.2.0",
+  "pydantic>=2.7.0",
+]
+
+[project.optional-dependencies]
+dev = [
+  "pytest>=8.0.0",
+]
+
+[project.scripts]
+automaton-bench = "automaton_bench.cli:main"
+
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"

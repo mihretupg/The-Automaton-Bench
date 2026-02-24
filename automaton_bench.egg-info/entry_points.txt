@@ -1,0 +1,2 @@
+[console_scripts]
+automaton-bench = automaton_bench.cli:main

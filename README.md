@@ -1,32 +1,51 @@
-# ⚖️ The Automaton Bench
+# The Automaton Bench
 
-The Automaton Bench is a hierarchical, multi-agent LangGraph system designed to audit AI-generated codebases using forensic evidence collection and dialectical judicial reasoning.
+The Automaton Bench is a multi-agent LangGraph auditor designed for Week 2 MinMax optimization:
 
-## 🏛 Architecture Overview
+- Forensic analysis to verify code artifacts objectively.
+- Nuanced scoring through a strict rubric.
+- Constructive remediation output, not only pass/fail.
 
-The system operates as a Digital Courtroom:
+## Architecture
 
-- 🕵️ Detectives collect objective forensic evidence from repositories and documentation.
-- ⚖️ Judges (Prosecutor, Defense, Tech Lead) independently evaluate findings.
-- 👩‍⚖️ The Chief Justice synthesizes conflict into a deterministic final verdict.
+1. `Forensics` agent gathers AST and repository evidence.
+2. `Judges` (Prosecutor, Defense, TechLead) score independently.
+3. `Chief Justice` synthesizes a deterministic final verdict.
 
-## 🎯 Purpose
+The graph is fan-out (three judges in parallel) then fan-in (single synthesis).
 
-In AI-native enterprises, code generation scales exponentially. Human review does not.  
-The Automaton Bench ensures governance scales with generation.
+## Quick Start
 
-## 🔍 Core Capabilities
+```bash
+python -m venv .venv
+. .venv/Scripts/activate
+pip install -e ".[dev]"
+```
 
-- Deep AST-based repository analysis
-- Git forensic timeline verification
-- Structured judicial scoring via Pydantic models
-- Parallel LangGraph orchestration (Fan-Out / Fan-In)
-- Deterministic synthesis engine with constitutional rules
-- Production-grade audit report generation
+Run an audit:
 
-## 🚀 Use Cases
+```bash
+automaton-bench "C:\path\to\target\repo" --output-dir audit_output
+```
 
-- Automated Security Audits
-- ISO/SOC2 Compliance Governance
-- Architectural Review Automation
-- AI Code Quality Assurance at Scale
+Outputs:
+
+- `audit_output/audit_report.json`
+- `audit_output/audit_report.md`
+
+## Scoring Rubric (100 points)
+
+- Artifact existence: 25
+- Architecture modularity: 25
+- Test quality: 20
+- CI and governance: 15
+- Documentation quality: 15
+
+## MinMax Loop (Week 2)
+
+1. Audit peer repositories with this auditor.
+2. Receive peer auditor reports on your repository.
+3. Fix implementation gaps in your Week 2 project.
+4. Refine this auditor to catch misses and reduce false positives.
+
+Repeat until both your project quality and your auditor quality converge upward.

@@ -1,0 +1,2 @@
+"""The Automaton Bench package."""
+

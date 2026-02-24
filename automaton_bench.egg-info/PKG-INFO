@@ -1,0 +1,9 @@
+Metadata-Version: 2.4
+Name: automaton-bench
+Version: 0.1.0
+Summary: Automated auditor swarm for Week 2 repository grading.
+Requires-Python: >=3.10
+Requires-Dist: langgraph>=0.2.0
+Requires-Dist: pydantic>=2.7.0
+Provides-Extra: dev
+Requires-Dist: pytest>=8.0.0; extra == "dev"
