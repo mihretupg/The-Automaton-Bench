@@ -6,6 +6,11 @@ from typing import Iterable
 
 from automaton_bench.models import ForensicEvidence
 
+try:
+    from pypdf import PdfReader
+except Exception:  # pragma: no cover - optional dependency import guard
+    PdfReader = None
+
 
 def _is_test_file(path: Path) -> bool:
     name = path.name.lower()
@@ -23,9 +28,52 @@ def _iter_python_files(root: Path) -> Iterable[Path]:
     yield from root.rglob("*.py")
 
 
-def collect_forensic_evidence(repo_path: str) -> ForensicEvidence:
+def _extract_pdf_evidence(evidence: ForensicEvidence, pdf_report_path: str | None) -> None:
+    if not pdf_report_path:
+        evidence.findings.append("No PDF report provided for cross-evidence verification.")
+        return
+
+    pdf_path = Path(pdf_report_path).resolve()
+    evidence.pdf_report_path = str(pdf_path)
+    if not pdf_path.exists():
+        evidence.findings.append(f"PDF report not found: {pdf_path}")
+        return
+    if PdfReader is None:
+        evidence.findings.append("pypdf dependency missing; PDF report was not analyzed.")
+        return
+
+    try:
+        reader = PdfReader(str(pdf_path))
+    except Exception as exc:  # pragma: no cover - parser errors vary by document
+        evidence.findings.append(f"Failed to parse PDF report: {exc}")
+        return
+
+    text_parts: list[str] = []
+    for page in reader.pages:
+        try:
+            page_text = page.extract_text() or ""
+        except Exception:
+            page_text = ""
+        text_parts.append(page_text)
+
+    text = "\n".join(text_parts).strip()
+    evidence.pdf_page_count = len(reader.pages)
+    evidence.pdf_text_char_count = len(text)
+    evidence.pdf_excerpt = text[:300]
+
+    if evidence.pdf_page_count == 0:
+        evidence.findings.append("Provided PDF report appears empty.")
+    if evidence.pdf_text_char_count < 120:
+        evidence.findings.append("PDF report has very little extractable text.")
+
+
+def collect_forensic_evidence(
+    repo_path: str,
+    repository_source_url: str | None = None,
+    pdf_report_path: str | None = None,
+) -> ForensicEvidence:
     root = Path(repo_path).resolve()
-    evidence = ForensicEvidence(repository_path=str(root))
+    evidence = ForensicEvidence(repository_path=str(root), repository_source_url=repository_source_url)
 
     python_files = [p for p in _iter_python_files(root) if ".git" not in p.parts]
     evidence.python_files = len(python_files)
@@ -81,5 +129,6 @@ def collect_forensic_evidence(repo_path: str) -> ForensicEvidence:
     if not evidence.dependency_files:
         evidence.findings.append("No dependency management file detected.")
 
-    return evidence
+    _extract_pdf_evidence(evidence, pdf_report_path)
 
+    return evidence

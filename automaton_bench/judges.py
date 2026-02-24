@@ -27,6 +27,8 @@ def _bound(value: int, min_v: int, max_v: int) -> int:
 
 def _build_rationale(e: ForensicEvidence, focus: str) -> List[str]:
     notes = [f"Focus: {focus}"]
+    if e.repository_source_url:
+        notes.append(f"Evidence sourced from GitHub URL: {e.repository_source_url}")
     if e.python_files == 0:
         notes.append("Repository does not contain executable Python artifacts.")
     if e.test_files > 0:
@@ -39,6 +41,12 @@ def _build_rationale(e: ForensicEvidence, focus: str) -> List[str]:
         notes.append("CI workflow missing.")
     if e.type_hinted_function_ratio >= 0.5:
         notes.append("Type annotation coverage is moderate to high.")
+    if e.pdf_report_path:
+        notes.append(
+            f"Reviewed PDF report ({e.pdf_page_count} pages, {e.pdf_text_char_count} extracted chars)."
+        )
+    else:
+        notes.append("No PDF report context available to corroborate repository findings.")
     return notes
 
 
@@ -52,6 +60,10 @@ def _build_remediation(e: ForensicEvidence) -> List[str]:
         fixes.append("Add SECURITY.md and dependency scanning in CI.")
     if e.type_hinted_function_ratio < 0.4:
         fixes.append("Increase type hints on public functions and critical flows.")
+    if not e.pdf_report_path:
+        fixes.append("Attach the latest PDF report so judges can cross-check documented claims.")
+    elif e.pdf_text_char_count < 120:
+        fixes.append("Provide a text-readable PDF report with explicit findings and evidence.")
     if not fixes:
         fixes.append("No critical remediation required; refine edge-case coverage.")
     return fixes
@@ -73,4 +85,3 @@ def generate_judge_opinion(evidence: ForensicEvidence, profile: JudgeProfile) ->
         rationale=_build_rationale(evidence, profile.focus),
         remediation=_build_remediation(evidence),
     )
-

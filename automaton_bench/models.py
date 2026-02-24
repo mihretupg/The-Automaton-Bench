@@ -15,6 +15,11 @@ class VerdictLabel(str, Enum):
 
 class ForensicEvidence(BaseModel):
     repository_path: str
+    repository_source_url: str | None = None
+    pdf_report_path: str | None = None
+    pdf_page_count: int = 0
+    pdf_text_char_count: int = 0
+    pdf_excerpt: str = ""
     python_files: int = 0
     test_files: int = 0
     docs_present: bool = False
@@ -66,4 +71,3 @@ class AuditReport(BaseModel):
     evidence: ForensicEvidence
     judge_opinions: List[JudgeOpinion]
     final_verdict: FinalVerdict
-

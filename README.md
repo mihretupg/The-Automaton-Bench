@@ -9,7 +9,7 @@ The Automaton Bench is a multi-agent LangGraph auditor designed for Week 2 MinMa
 ## Architecture
 
 1. `Forensics` agent gathers AST and repository evidence.
-2. `Judges` (Prosecutor, Defense, TechLead) score independently.
+2. `Judges` (Prosecutor, Defense, TechLead) score independently with courtroom personas.
 3. `Chief Justice` synthesizes a deterministic final verdict.
 
 The graph is fan-out (three judges in parallel) then fan-in (single synthesis).
@@ -25,7 +25,7 @@ pip install -e ".[dev]"
 Run an audit:
 
 ```bash
-automaton-bench "C:\path\to\target\repo" --output-dir audit_output
+automaton-bench "https://github.com/org/repo" --pdf-report "C:\path\to\peer-report.pdf" --output-dir audit_output
 ```
 
 Outputs:
@@ -49,3 +49,8 @@ Outputs:
 4. Refine this auditor to catch misses and reduce false positives.
 
 Repeat until both your project quality and your auditor quality converge upward.
+
+## Inputs
+
+- One GitHub repository URL (or local path for offline testing)
+- One PDF report used as documentary evidence

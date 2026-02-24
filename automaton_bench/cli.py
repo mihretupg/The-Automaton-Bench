@@ -9,7 +9,15 @@ from automaton_bench.reporting import write_report_json, write_report_markdown
 
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="Automaton Bench repository auditor.")
-    parser.add_argument("repo_path", help="Path to the repository to audit.")
+    parser.add_argument(
+        "repository",
+        help="GitHub repository URL or local repository path to audit.",
+    )
+    parser.add_argument(
+        "--pdf-report",
+        required=True,
+        help="Path to the companion PDF report used as courtroom evidence.",
+    )
     parser.add_argument(
         "--output-dir",
         default="audit_output",
@@ -20,7 +28,7 @@ def parse_args() -> argparse.Namespace:
 
 def main() -> None:
     args = parse_args()
-    report = run_audit(args.repo_path)
+    report = run_audit(args.repository, pdf_report_path=args.pdf_report)
     out_dir = Path(args.output_dir)
     out_dir.mkdir(parents=True, exist_ok=True)
 
@@ -36,4 +44,3 @@ def main() -> None:
 
 if __name__ == "__main__":
     main()
-

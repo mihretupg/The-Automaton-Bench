@@ -6,6 +6,7 @@ requires-python = ">=3.10"
 dependencies = [
   "langgraph>=0.2.0",
   "pydantic>=2.7.0",
+  "pypdf>=4.2.0",
 ]
 
 [project.optional-dependencies]

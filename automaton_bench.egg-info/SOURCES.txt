@@ -4,6 +4,7 @@ automaton_bench/__init__.py
 automaton_bench/cli.py
 automaton_bench/forensics.py
 automaton_bench/graph.py
+automaton_bench/intake.py
 automaton_bench/judges.py
 automaton_bench/models.py
 automaton_bench/reporting.py
@@ -17,3 +18,4 @@ automaton_bench.egg-info/requires.txt
 automaton_bench.egg-info/top_level.txt
 tests/test_forensics.py
 tests/test_graph.py
+tests/test_intake.py

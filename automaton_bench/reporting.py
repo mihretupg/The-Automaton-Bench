@@ -26,6 +26,10 @@ def build_markdown_report(report: AuditReport) -> str:
         "",
         "## Forensic Snapshot",
         f"- Repository: `{ev.repository_path}`",
+        f"- Repository URL: `{ev.repository_source_url or 'N/A'}`",
+        f"- PDF report: `{ev.pdf_report_path or 'N/A'}`",
+        f"- PDF pages: `{ev.pdf_page_count}`",
+        f"- PDF extracted chars: `{ev.pdf_text_char_count}`",
         f"- Python files: `{ev.python_files}`",
         f"- Test files: `{ev.test_files}`",
         f"- Package count: `{ev.package_count}`",
@@ -36,6 +40,9 @@ def build_markdown_report(report: AuditReport) -> str:
         f"- CI present: `{ev.ci_present}`",
         f"- Docs present: `{ev.docs_present}`",
         f"- Security docs present: `{ev.security_docs_present}`",
+        "",
+        "## PDF Excerpt",
+        ev.pdf_excerpt or "_No extractable PDF text available._",
         "",
         "## Findings",
     ]
@@ -61,4 +68,3 @@ def build_markdown_report(report: AuditReport) -> str:
 
 def write_report_markdown(report: AuditReport, output_path: Path) -> None:
     output_path.write_text(build_markdown_report(report), encoding="utf-8")
-
