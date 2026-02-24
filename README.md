@@ -22,6 +22,10 @@ The Automaton Bench is a multi-agent LangGraph auditor designed for Week 2 MinMa
      - Cross-Evidence Fidelity
 3. Chief Justice Layer:
    - synthesizes the final verdict and unified remediation plan.
+   - applies hardcoded Supreme Court rules:
+     - Security Rule: confirmed security vulnerabilities cap criterion scores at 3.
+     - Evidence Rule: Defense claims of deep metacognition are overruled without valid PDF evidence.
+     - Functionality Rule: Tech Lead carries highest weight on architecture viability.
 
 The graph is fan-out (three judges in parallel) then fan-in (single synthesis).
 
