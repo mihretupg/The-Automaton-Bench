@@ -1,107 +1,65 @@
 # The Automaton Bench
 
-The Automaton Bench is a multi-agent LangGraph auditor designed for Week 2 MinMax optimization:
+Deliverable-focused implementation of the Digital Courtroom architecture for Week 2.
 
-- Forensic analysis to verify code artifacts objectively.
-- Nuanced scoring through a strict rubric.
-- Constructive remediation output, not only pass/fail.
+## Deliverable Map
+- `src/state.py`: Pydantic + TypedDict state definitions with reducers (`operator.add`, `operator.ior`)
+- `src/tools/repo_tools.py`: sandboxed clone, git history extraction, AST graph analysis
+- `src/tools/doc_tools.py`: PDF ingestion + chunked RAG-lite querying
+- `src/nodes/detectives.py`: RepoInvestigator, DocAnalyst, VisionInspector, EvidenceAggregator
+- `src/nodes/judges.py`: Prosecutor, Defense, TechLead with `.with_structured_output()` path
+- `src/nodes/justice.py`: deterministic ChiefJustice conflict resolution and audit synthesis
+- `src/graph.py`: full fan-out/fan-in graph with conditional error handling
+- `src/constitution.json`: central machine-readable constitution (dimensions + synthesis rules)
+- `src/constitution.py`: ContextBuilder helpers to dispatch forensic instructions by `target_artifact`
+- `automaton_bench/rubric.json`: constitutional scoring dimensions
+- `automaton_bench/conflict_rules.json`: deterministic conflict feedback rules
+- `reports/interim_report.pdf`, `reports/final_report.pdf`
+- `audit/report_onself_generated/`, `audit/report_onpeer_generated/`, `audit/report_bypeer_received/`
 
-## Architecture
-
-1. Detective Layer (Hierarchical subgraph):
-   - `RepoInvestigator`: AST/state schema checks, graph fan-out wiring checks, and git narrative timeline extraction.
-   - `DocAnalyst`: citation cross-reference and concept-depth verification.
-   - `VisionInspector`: architecture flow analysis for parallel detective/judge topology.
-   - Phase 2 tool primitives:
-     - `analyze_graph_structure(path: str)`
-     - `extract_git_history(path: str)`
-     - `ingest_pdf(path: str)` with chunked RAG-lite query support
-     - `extract_images_from_pdf(path: str)` for multimodal inspection hooks
-2. Judge Layer:
-   - `Prosecutor`, `Defense`, and `TechLead` evaluate identical evidence in parallel.
-   - Each judge emits criterion-by-criterion `JudicialCriterionOpinion` objects for:
-     - Artifact Integrity
-     - LangGraph Architecture
-     - Judicial Nuance
-     - Engineering Process
-     - Cross-Evidence Fidelity
-   - Structured output enforcement:
-     - Judges use `.with_structured_output()` when `OPENAI_API_KEY` is available.
-     - Parser errors trigger retry attempts before fallback logic is used.
-3. Chief Justice Layer:
-   - synthesizes the final verdict and unified remediation plan.
-   - applies hardcoded Supreme Court rules:
-     - Security Rule: confirmed security vulnerabilities cap criterion scores at 3.
-     - Evidence Rule: Defense claims of deep metacognition are overruled without valid PDF evidence.
-     - Functionality Rule: Tech Lead carries highest weight on architecture viability.
-
-The graph is fan-out (three judges in parallel) then fan-in (single synthesis).
-
-## Quick Start
-
+## Setup (uv)
 ```bash
 uv venv
 uv sync
-```
-
-Create environment file:
-
-```bash
 copy .env.example .env
 ```
 
-Set `LANGCHAIN_API_KEY` in `.env` for LangSmith traces. Runtime bootstraps `.env` automatically and enables `LANGCHAIN_TRACING_V2=true`.
+Set required keys in `.env`:
+- `LANGCHAIN_API_KEY` (LangSmith tracing)
+- `OPENAI_API_KEY` (structured judge outputs)
+- optional: `GITHUB_TOKEN`
 
-Run backend API:
-
+## Run Detective Graph (Phase 2)
 ```bash
-uv run automaton-bench-api
+uv run python -c "from src.graph import run_detective_graph; run_detective_graph('https://github.com/org/repo', 'reports/final_report.pdf')"
 ```
 
-Run frontend:
-
+## Run Full Swarm (Detectives + Judges + Chief Justice)
 ```bash
+uv run python -c "from src.graph import run_full_graph; run_full_graph('https://github.com/org/repo', 'reports/final_report.pdf', output_markdown='audit/report_onself_generated/audit_report.md')"
+```
+
+## Output Contract
+Generated Markdown reports follow:
+1. Executive Summary
+2. Criterion Breakdown
+3. Remediation Plan
+
+The `ContextBuilder` in `src/graph.py` dispatches:
+- `forensic_instruction` to detectives by `target_artifact` (`github_repo`, `pdf_report`, `pdf_images`)
+- aggregated judicial standards into judge prompts
+- `synthesis_rules` into `ChiefJusticeNode`
+
+## API/Frontend (optional)
+```bash
+uv run automaton-bench-api
 cd frontend
 npm install
 npm run dev
 ```
 
-Then open `http://localhost:5173` and submit a repository + PDF report.
-
-Run a CLI audit:
-
+## Docker (optional)
 ```bash
-uv run automaton-bench "https://github.com/org/repo" --pdf-report "C:\path\to\peer-report.pdf" --output-dir audit_output
+docker build -t automaton-bench .
+docker run --rm -p 8000:8000 --env-file .env automaton-bench
 ```
-
-Outputs:
-
-- `audit_output/audit_report.json`
-- `audit_output/audit_report.md`
-
-## Scoring Rubric (100 points)
-
-- Artifact existence: 25
-- Architecture modularity: 25
-- Test quality: 20
-- CI and governance: 15
-- Documentation quality: 15
-
-## MinMax Loop (Week 2)
-
-1. Audit peer repositories with this auditor.
-2. Receive peer auditor reports on your repository.
-3. Fix implementation gaps in your Week 2 project.
-4. Refine this auditor to catch misses and reduce false positives.
-
-Repeat until both your project quality and your auditor quality converge upward.
-
-## Constitution
-
-- Scoring dimensions are dynamically loaded from [automaton_bench/rubric.json](automaton_bench/rubric.json).
-- Update that file to change courtroom rubric behavior without changing code paths.
-
-## Inputs
-
-- One GitHub repository URL (or local path for offline testing)
-- One PDF report used as documentary evidence

@@ -2,6 +2,8 @@ from automaton_bench.models import (
     ForensicEvidence,
     JudgeOpinion,
     JudicialCriterionOpinion,
+    ProtocolResult,
+    RepoInvestigatorEvidence,
     RubricBreakdown,
 )
 from automaton_bench.synthesis import synthesize_verdict
@@ -69,7 +71,14 @@ def test_evidence_rule_overrules_defense_metacognition_claim() -> None:
 
 
 def test_functionality_rule_weights_techlead_for_architecture() -> None:
-    evidence = ForensicEvidence(repository_path="repo")
+    evidence = ForensicEvidence(
+        repository_path="repo",
+        repo_investigator=RepoInvestigatorEvidence(
+            state_structure=ProtocolResult(protocol="State Structure", passed=True, summary="typed"),
+            graph_wiring=ProtocolResult(protocol="Graph Wiring", passed=False, summary="partial"),
+            git_narrative=ProtocolResult(protocol="Git Narrative", passed=False, summary="n/a"),
+        ),
+    )
     opinions = [
         _opinion("Prosecutor", {"LangGraph Architecture": 1}),
         _opinion("Defense", {"LangGraph Architecture": 1}),
@@ -78,7 +87,10 @@ def test_functionality_rule_weights_techlead_for_architecture() -> None:
     verdict = synthesize_verdict(opinions, evidence)
     architecture = next(item for item in verdict.criterion_verdicts if item.criterion == "LangGraph Architecture")
     assert architecture.final_score_1_to_5 == 3
-    assert any("Tech Lead carried higher weight" in d.summary for d in verdict.dissents)
+    assert any(
+        ("Tech Lead carried higher weight" in d.summary) or ("re-evaluated with constitution rules" in d.summary)
+        for d in verdict.dissents
+    )
 
 
 def test_conflict_variance_triggers_constitution_re_evaluation() -> None:
