@@ -8,9 +8,14 @@ The Automaton Bench is a multi-agent LangGraph auditor designed for Week 2 MinMa
 
 ## Architecture
 
-1. `Forensics` agent gathers AST and repository evidence.
-2. `Judges` (Prosecutor, Defense, TechLead) score independently with courtroom personas.
-3. `Chief Justice` synthesizes a deterministic final verdict.
+1. Detective Layer (Hierarchical subgraph):
+   - `RepoInvestigator`: AST/state schema checks, graph fan-out wiring checks, and git narrative timeline extraction.
+   - `DocAnalyst`: citation cross-reference and concept-depth verification.
+   - `VisionInspector`: architecture flow analysis for parallel detective/judge topology.
+2. Judge Layer:
+   - `Prosecutor`, `Defense`, and `TechLead` evaluate identical evidence in parallel.
+3. Chief Justice Layer:
+   - synthesizes the final verdict and unified remediation plan.
 
 The graph is fan-out (three judges in parallel) then fan-in (single synthesis).
 
